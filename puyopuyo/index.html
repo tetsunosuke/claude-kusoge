@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ぷよぷよ - Claude クソゲー集</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #222;
+            color: white;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            border: 2px solid #fff;
+            background: #000;
+        }
+        .game-info {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .controls {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .score {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border: 2px solid #fff;
+            text-align: center;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 ぷよぷよ</h1>
+    <div class="score">スコア: <span id="score">0</span></div>
+    <canvas id="gameCanvas" width="300" height="600"></canvas>
+    
+    <div class="game-over" id="gameOver">
+        <h2>ゲームオーバー!</h2>
+        <p>最終スコア: <span id="finalScore">0</span></p>
+        <p>スペースキーでリスタート</p>
+    </div>
+    
+    <div class="game-info">
+        <div class="controls">
+            <strong>操作方法:</strong><br>
+            ←→: 移動 | ↓: 落下速度アップ | Z: 回転 | スペース: リスタート
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const gameOverElement = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+
+        const GRID_WIDTH = 6;
+        const GRID_HEIGHT = 12;
+        const CELL_SIZE = 50;
+
+        const COLORS = {
+            0: '#000000', // 空
+            1: '#FF0000', // 赤
+            2: '#00FF00', // 緑  
+            3: '#0000FF', // 青
+            4: '#FFFF00', // 黄
+            5: '#FF00FF'  // 紫
+        };
+
+        let grid = [];
+        let currentPuyo = null;
+        let nextPuyo = null;
+        let score = 0;
+        let gameRunning = false;
+        let lastTime = 0;
+        let dropSpeed = 500; // ms
+
+        function initGrid() {
+            grid = [];
+            for (let y = 0; y < GRID_HEIGHT; y++) {
+                grid[y] = [];
+                for (let x = 0; x < GRID_WIDTH; x++) {
+                    grid[y][x] = 0;
+                }
+            }
+        }
+
+        function createPuyo() {
+            const color1 = Math.floor(Math.random() * 5) + 1;
+            const color2 = Math.floor(Math.random() * 5) + 1;
+            return {
+                x: Math.floor(GRID_WIDTH / 2) - 1,
+                y: 0,
+                colors: [color1, color2],
+                rotation: 0 // 0: 縦, 1: 右, 2: 上, 3: 左
+            };
+        }
+
+        function drawCell(x, y, color) {
+            ctx.fillStyle = COLORS[color];
+            ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            if (color > 0) {
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            }
+        }
+
+        function drawGrid() {
+            for (let y = 0; y < GRID_HEIGHT; y++) {
+                for (let x = 0; x < GRID_WIDTH; x++) {
+                    drawCell(x, y, grid[y][x]);
+                }
+            }
+        }
+
+        function drawPuyo(puyo) {
+            if (!puyo) return;
+            
+            const positions = getPuyoPositions(puyo);
+            positions.forEach((pos, index) => {
+                if (pos.y >= 0 && pos.y < GRID_HEIGHT && pos.x >= 0 && pos.x < GRID_WIDTH) {
+                    drawCell(pos.x, pos.y, puyo.colors[index]);
+                }
+            });
+        }
+
+        function getPuyoPositions(puyo) {
+            const positions = [{ x: puyo.x, y: puyo.y }];
+            
+            switch (puyo.rotation) {
+                case 0: // 縦（下）
+                    positions.push({ x: puyo.x, y: puyo.y + 1 });
+                    break;
+                case 1: // 右
+                    positions.push({ x: puyo.x + 1, y: puyo.y });
+                    break;
+                case 2: // 縦（上）
+                    positions.push({ x: puyo.x, y: puyo.y - 1 });
+                    break;
+                case 3: // 左
+                    positions.push({ x: puyo.x - 1, y: puyo.y });
+                    break;
+            }
+            
+            return positions;
+        }
+
+        function canPlace(puyo) {
+            const positions = getPuyoPositions(puyo);
+            return positions.every(pos => 
+                pos.x >= 0 && pos.x < GRID_WIDTH && 
+                pos.y < GRID_HEIGHT && 
+                (pos.y < 0 || grid[pos.y][pos.x] === 0)
+            );
+        }
+
+        function placePuyo(puyo) {
+            const positions = getPuyoPositions(puyo);
+            positions.forEach((pos, index) => {
+                if (pos.y >= 0 && pos.y < GRID_HEIGHT) {
+                    grid[pos.y][pos.x] = puyo.colors[index];
+                }
+            });
+        }
+
+        function rotatePuyo(puyo) {
+            const newPuyo = { 
+                ...puyo, 
+                rotation: (puyo.rotation + 1) % 4,
+                colors: [puyo.colors[1], puyo.colors[0]]
+            };
+            return canPlace(newPuyo) ? newPuyo : puyo;
+        }
+
+        function movePuyo(puyo, dx, dy) {
+            const newPuyo = { ...puyo, x: puyo.x + dx, y: puyo.y + dy };
+            return canPlace(newPuyo) ? newPuyo : puyo;
+        }
+
+        function findConnected(x, y, color, visited = new Set()) {
+            const key = `${x},${y}`;
+            if (visited.has(key) || x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) {
+                return [];
+            }
+            if (grid[y][x] !== color || color === 0) {
+                return [];
+            }
+            
+            visited.add(key);
+            const connected = [{ x, y }];
+            
+            // 4方向チェック
+            const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            directions.forEach(([dx, dy]) => {
+                connected.push(...findConnected(x + dx, y + dy, color, visited));
+            });
+            
+            return connected;
+        }
+
+        function clearPuyos() {
+            let cleared = 0;
+            let totalCleared = 0;
+            
+            do {
+                cleared = 0;
+                const toClear = new Set();
+                
+                for (let y = 0; y < GRID_HEIGHT; y++) {
+                    for (let x = 0; x < GRID_WIDTH; x++) {
+                        if (grid[y][x] > 0) {
+                            const connected = findConnected(x, y, grid[y][x]);
+                            if (connected.length >= 4) {
+                                connected.forEach(pos => toClear.add(`${pos.x},${pos.y}`));
+                            }
+                        }
+                    }
+                }
+                
+                toClear.forEach(key => {
+                    const [x, y] = key.split(',').map(Number);
+                    grid[y][x] = 0;
+                    cleared++;
+                });
+                
+                if (cleared > 0) {
+                    totalCleared += cleared;
+                    applyGravity();
+                }
+                
+            } while (cleared > 0);
+            
+            if (totalCleared > 0) {
+                score += totalCleared * 10 * (Math.floor(totalCleared / 4) + 1);
+                scoreElement.textContent = score;
+            }
+        }
+
+        function applyGravity() {
+            for (let x = 0; x < GRID_WIDTH; x++) {
+                let writePos = GRID_HEIGHT - 1;
+                for (let y = GRID_HEIGHT - 1; y >= 0; y--) {
+                    if (grid[y][x] > 0) {
+                        if (y !== writePos) {
+                            grid[writePos][x] = grid[y][x];
+                            grid[y][x] = 0;
+                        }
+                        writePos--;
+                    }
+                }
+            }
+        }
+
+        function checkGameOver() {
+            for (let x = 0; x < GRID_WIDTH; x++) {
+                if (grid[0][x] > 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            finalScoreElement.textContent = score;
+            gameOverElement.style.display = 'block';
+        }
+
+        function startGame() {
+            initGrid();
+            score = 0;
+            scoreElement.textContent = score;
+            gameOverElement.style.display = 'none';
+            currentPuyo = createPuyo();
+            nextPuyo = createPuyo();
+            gameRunning = true;
+            lastTime = performance.now();
+        }
+
+        function gameLoop(currentTime) {
+            if (!gameRunning) {
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+
+            if (currentTime - lastTime > dropSpeed) {
+                const newPuyo = movePuyo(currentPuyo, 0, 1);
+                if (newPuyo === currentPuyo) {
+                    placePuyo(currentPuyo);
+                    clearPuyos();
+                    
+                    if (checkGameOver()) {
+                        gameOver();
+                        requestAnimationFrame(gameLoop);
+                        return;
+                    }
+                    
+                    currentPuyo = nextPuyo;
+                    nextPuyo = createPuyo();
+                } else {
+                    currentPuyo = newPuyo;
+                }
+                lastTime = currentTime;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            drawPuyo(currentPuyo);
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        // キーボード操作
+        document.addEventListener('keydown', (e) => {
+            if (!gameRunning && e.code === 'Space') {
+                startGame();
+                return;
+            }
+            
+            if (!gameRunning) return;
+            
+            switch (e.code) {
+                case 'ArrowLeft':
+                    currentPuyo = movePuyo(currentPuyo, -1, 0);
+                    break;
+                case 'ArrowRight':
+                    currentPuyo = movePuyo(currentPuyo, 1, 0);
+                    break;
+                case 'ArrowDown':
+                    currentPuyo = movePuyo(currentPuyo, 0, 1);
+                    break;
+                case 'KeyZ':
+                    currentPuyo = rotatePuyo(currentPuyo);
+                    break;
+                case 'Space':
+                    startGame();
+                    break;
+            }
+        });
+
+        // ゲーム開始
+        startGame();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

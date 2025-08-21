@@ -1,0 +1,3 @@
+パックマンみたいなゲームを作って
+
+各ゲームはHTML5 CanvasとJavaScriptで実装されており、Vercelで自動デプロイされます。
