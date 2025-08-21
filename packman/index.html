@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pac-Man Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        
+        #gameContainer {
+            position: relative;
+            border: 2px solid #0000FF;
+            background: #000;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: #000;
+        }
+        
+        #gameInfo {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #FFFF00;
+            font-size: 16px;
+            z-index: 10;
+            font-weight: bold;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: #FFFFFF;
+            font-size: 12px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="gameInfo">
+            <div>スコア: <span id="score">0</span></div>
+            <div>ライフ: <span id="lives">3</span></div>
+        </div>
+        <div id="instructions">
+            WASD または 矢印キーで移動 | P: ポーズ
+        </div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 600;
+        const CELL_SIZE = 20;
+        const COLS = Math.floor(GAME_WIDTH / CELL_SIZE);
+        const ROWS = Math.floor(GAME_HEIGHT / CELL_SIZE);
+        
+        let score = 0;
+        let lives = 3;
+        let gameRunning = true;
+        let keys = {};
+        let gameWon = false;
+        
+        // 迷路マップ (1=壁, 0=道, 2=ドット)
+        const maze = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,1,2,1,1,1,1,1,1,2,1,1,1,1,2,1,1,2,1,1,1,1,2,1,1,1,1,1,1,2,1,1,1,1,2,1],
+            [1,2,1,1,1,1,2,1,1,1,1,1,1,2,1,1,1,1,2,1,1,2,1,1,1,1,2,1,1,1,1,1,1,2,1,1,1,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,2,1],
+            [1,2,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,2,1],
+            [1,2,2,2,2,2,2,1,1,2,2,2,2,1,1,2,2,2,2,2,2,2,2,2,2,1,1,2,2,2,1,1,2,2,2,2,2,2,2,1],
+            [1,1,1,1,1,1,2,1,1,1,1,1,0,1,1,2,1,1,0,0,0,0,1,1,2,1,1,0,1,1,1,1,1,2,1,1,1,1,1,1],
+            [0,0,0,0,0,1,2,1,1,1,1,1,0,1,1,2,1,0,0,0,0,0,0,1,2,1,1,0,1,1,1,1,1,2,1,0,0,0,0,0],
+            [0,0,0,0,0,1,2,1,1,0,0,0,0,0,0,2,1,0,0,0,0,0,0,1,2,0,0,0,0,0,1,1,1,2,1,0,0,0,0,0],
+            [0,0,0,0,0,1,2,1,1,0,1,1,1,0,0,2,1,0,0,0,0,0,0,1,2,0,0,1,1,1,0,1,1,2,1,0,0,0,0,0],
+            [1,1,1,1,1,1,2,1,1,0,1,0,0,0,0,2,0,0,0,0,0,0,0,0,2,0,0,0,0,1,0,1,1,2,1,1,1,1,1,1],
+            [0,0,0,0,0,0,2,0,0,0,1,0,0,0,0,2,0,0,0,0,0,0,0,0,2,0,0,0,0,1,0,0,0,2,0,0,0,0,0,0],
+            [0,0,0,0,0,0,2,0,0,0,1,0,0,0,0,2,0,0,0,0,0,0,0,0,2,0,0,0,0,1,0,0,0,2,0,0,0,0,0,0],
+            [1,1,1,1,1,1,2,1,1,0,1,0,0,0,0,2,0,0,0,0,0,0,0,0,2,0,0,0,0,1,0,1,1,2,1,1,1,1,1,1],
+            [0,0,0,0,0,1,2,1,1,0,1,1,1,1,1,2,1,1,1,1,1,1,1,1,2,1,1,1,1,1,0,1,1,2,1,0,0,0,0,0],
+            [0,0,0,0,0,1,2,1,1,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,1,1,2,1,0,0,0,0,0],
+            [0,0,0,0,0,1,2,1,1,0,1,1,1,1,1,2,1,1,0,0,0,0,1,1,2,1,1,1,1,1,0,1,1,2,1,0,0,0,0,0],
+            [1,1,1,1,1,1,2,1,1,0,1,1,1,1,1,2,1,1,0,0,0,0,1,1,2,1,1,1,1,1,0,1,1,2,1,1,1,1,1,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,0,0,0,0,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,1,2,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,2,1,1,1,1,2,1],
+            [1,2,1,1,1,1,2,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,2,1,1,1,1,2,1],
+            [1,2,2,2,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,2,2,2,1],
+            [1,1,1,2,1,1,2,1,1,2,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,2,1,1,2,1,1,2,1,1,1],
+            [1,1,1,2,1,1,2,1,1,2,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,2,1,1,2,1,1,2,1,1,1],
+            [1,2,2,2,2,2,2,1,1,2,2,2,2,1,1,2,2,2,2,2,2,2,2,2,2,1,1,2,2,2,2,1,1,2,2,2,2,2,2,1],
+            [1,2,1,1,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,1,1,2,1],
+            [1,2,1,1,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,1,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+        
+        class Player {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.size = 18;
+                this.direction = 0; // 0=右, 1=下, 2=左, 3=上
+                this.nextDirection = 0;
+                this.speed = 2;
+                this.mouthAngle = 0;
+                this.mouthDirection = 1;
+            }
+            
+            update() {
+                // 口の開閉アニメーション
+                this.mouthAngle += this.mouthDirection * 8;
+                if (this.mouthAngle >= 60 || this.mouthAngle <= 0) {
+                    this.mouthDirection *= -1;
+                }
+                
+                let nextX = this.x;
+                let nextY = this.y;
+                
+                // 次の方向に移動可能かチェック
+                if (keys['ArrowUp'] || keys['w'] || keys['W']) this.nextDirection = 3;
+                if (keys['ArrowDown'] || keys['s'] || keys['S']) this.nextDirection = 1;
+                if (keys['ArrowLeft'] || keys['a'] || keys['A']) this.nextDirection = 2;
+                if (keys['ArrowRight'] || keys['d'] || keys['D']) this.nextDirection = 0;
+                
+                // 次の方向への移動を試す
+                let testX = this.x;
+                let testY = this.y;
+                
+                if (this.nextDirection === 0) testX += this.speed; // 右
+                if (this.nextDirection === 1) testY += this.speed; // 下
+                if (this.nextDirection === 2) testX -= this.speed; // 左
+                if (this.nextDirection === 3) testY -= this.speed; // 上
+                
+                if (this.canMoveTo(testX, testY)) {
+                    this.direction = this.nextDirection;
+                    nextX = testX;
+                    nextY = testY;
+                } else {
+                    // 現在の方向に移動
+                    if (this.direction === 0) nextX += this.speed;
+                    if (this.direction === 1) nextY += this.speed;
+                    if (this.direction === 2) nextX -= this.speed;
+                    if (this.direction === 3) nextY -= this.speed;
+                    
+                    if (this.canMoveTo(nextX, nextY)) {
+                        // 移動可能
+                    } else {
+                        nextX = this.x;
+                        nextY = this.y;
+                    }
+                }
+                
+                // 画面端でのワープ
+                if (nextX < -this.size/2) nextX = GAME_WIDTH - this.size/2;
+                if (nextX > GAME_WIDTH - this.size/2) nextX = -this.size/2;
+                
+                this.x = nextX;
+                this.y = nextY;
+                
+                // ドット食べる
+                this.eatDots();
+            }
+            
+            canMoveTo(x, y) {
+                const left = Math.floor((x - this.size/2) / CELL_SIZE);
+                const right = Math.floor((x + this.size/2) / CELL_SIZE);
+                const top = Math.floor((y - this.size/2) / CELL_SIZE);
+                const bottom = Math.floor((y + this.size/2) / CELL_SIZE);
+                
+                if (left < 0 || right >= COLS || top < 0 || bottom >= ROWS) {
+                    return y >= 0 && y < GAME_HEIGHT; // 左右端は通れる
+                }
+                
+                return maze[top][left] !== 1 && maze[top][right] !== 1 && 
+                       maze[bottom][left] !== 1 && maze[bottom][right] !== 1;
+            }
+            
+            eatDots() {
+                const col = Math.floor(this.x / CELL_SIZE);
+                const row = Math.floor(this.y / CELL_SIZE);
+                
+                if (row >= 0 && row < ROWS && col >= 0 && col < COLS && maze[row][col] === 2) {
+                    maze[row][col] = 0;
+                    score += 10;
+                    updateUI();
+                    
+                    // 全ドット食べたかチェック
+                    if (this.checkWin()) {
+                        gameWon = true;
+                    }
+                }
+            }
+            
+            checkWin() {
+                for (let row of maze) {
+                    for (let cell of row) {
+                        if (cell === 2) return false;
+                    }
+                }
+                return true;
+            }
+            
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.direction * Math.PI / 2);
+                
+                ctx.fillStyle = '#FFFF00';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.size/2, 
+                    Math.PI * this.mouthAngle / 180, 
+                    Math.PI * (360 - this.mouthAngle) / 180);
+                ctx.lineTo(0, 0);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+            
+            reset() {
+                this.x = 50;
+                this.y = 50;
+                this.direction = 0;
+                this.nextDirection = 0;
+            }
+        }
+        
+        class Ghost {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.size = 18;
+                this.color = color;
+                this.direction = Math.floor(Math.random() * 4);
+                this.speed = 1.5;
+                this.alive = true;
+            }
+            
+            update() {
+                if (!this.alive) return;
+                
+                // 簡単なAI：ランダム方向転換
+                if (Math.random() < 0.02) {
+                    this.direction = Math.floor(Math.random() * 4);
+                }
+                
+                let nextX = this.x;
+                let nextY = this.y;
+                
+                if (this.direction === 0) nextX += this.speed;
+                if (this.direction === 1) nextY += this.speed;
+                if (this.direction === 2) nextX -= this.speed;
+                if (this.direction === 3) nextY -= this.speed;
+                
+                if (this.canMoveTo(nextX, nextY)) {
+                    this.x = nextX;
+                    this.y = nextY;
+                } else {
+                    this.direction = Math.floor(Math.random() * 4);
+                }
+                
+                // 画面端でのワープ
+                if (this.x < -this.size/2) this.x = GAME_WIDTH - this.size/2;
+                if (this.x > GAME_WIDTH - this.size/2) this.x = -this.size/2;
+            }
+            
+            canMoveTo(x, y) {
+                const left = Math.floor((x - this.size/2) / CELL_SIZE);
+                const right = Math.floor((x + this.size/2) / CELL_SIZE);
+                const top = Math.floor((y - this.size/2) / CELL_SIZE);
+                const bottom = Math.floor((y + this.size/2) / CELL_SIZE);
+                
+                if (left < 0 || right >= COLS || top < 0 || bottom >= ROWS) {
+                    return y >= 0 && y < GAME_HEIGHT;
+                }
+                
+                return maze[top][left] !== 1 && maze[top][right] !== 1 && 
+                       maze[bottom][left] !== 1 && maze[bottom][right] !== 1;
+            }
+            
+            checkCollision(player) {
+                const distance = Math.sqrt(
+                    Math.pow(this.x - player.x, 2) + Math.pow(this.y - player.y, 2)
+                );
+                return distance < (this.size + player.size) / 2;
+            }
+            
+            draw() {
+                if (!this.alive) return;
+                
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y - this.size/4, this.size/2, Math.PI, 0);
+                ctx.rect(this.x - this.size/2, this.y - this.size/4, this.size, this.size/2);
+                ctx.fill();
+                
+                // 底辺の波形
+                ctx.beginPath();
+                const waveWidth = this.size / 4;
+                for (let i = 0; i < 4; i++) {
+                    const waveX = this.x - this.size/2 + i * waveWidth;
+                    if (i % 2 === 0) {
+                        ctx.lineTo(waveX, this.y + this.size/4);
+                        ctx.lineTo(waveX + waveWidth/2, this.y + this.size/8);
+                        ctx.lineTo(waveX + waveWidth, this.y + this.size/4);
+                    }
+                }
+                ctx.fill();
+                
+                // 目
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(this.x - 4, this.y - 4, 3, 0, 2 * Math.PI);
+                ctx.arc(this.x + 4, this.y - 4, 3, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(this.x - 3, this.y - 4, 2, 0, 2 * Math.PI);
+                ctx.arc(this.x + 5, this.y - 4, 2, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+        
+        let player = new Player(50, 50);
+        let ghosts = [
+            new Ghost(400, 280, '#FF0000'),
+            new Ghost(380, 300, '#FFB8FF'),
+            new Ghost(420, 300, '#00FFFF'),
+            new Ghost(400, 320, '#FFB852')
+        ];
+        
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('lives').textContent = lives;
+        }
+        
+        function drawMaze() {
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    const x = col * CELL_SIZE;
+                    const y = row * CELL_SIZE;
+                    
+                    if (maze[row][col] === 1) {
+                        // 壁
+                        ctx.fillStyle = '#0000FF';
+                        ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+                    } else if (maze[row][col] === 2) {
+                        // ドット
+                        ctx.fillStyle = '#FFFF00';
+                        ctx.beginPath();
+                        ctx.arc(x + CELL_SIZE/2, y + CELL_SIZE/2, 2, 0, 2 * Math.PI);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+        
+        function checkCollisions() {
+            ghosts.forEach(ghost => {
+                if (ghost.checkCollision(player)) {
+                    player.reset();
+                    lives--;
+                    updateUI();
+                }
+            });
+        }
+        
+        function gameLoop() {
+            if (!gameRunning || lives <= 0 || gameWon) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+                ctx.fillStyle = '#FFFF00';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                
+                if (gameWon) {
+                    ctx.fillText('YOU WIN!', GAME_WIDTH / 2, GAME_HEIGHT / 2);
+                } else if (lives <= 0) {
+                    ctx.fillText('GAME OVER', GAME_WIDTH / 2, GAME_HEIGHT / 2);
+                } else {
+                    ctx.fillText('PAUSED', GAME_WIDTH / 2, GAME_HEIGHT / 2);
+                }
+                
+                if (lives <= 0 || gameWon) return;
+            }
+            
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            
+            drawMaze();
+            
+            player.update();
+            ghosts.forEach(ghost => ghost.update());
+            checkCollisions();
+            
+            player.draw();
+            ghosts.forEach(ghost => ghost.draw());
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (e.key === 'p' || e.key === 'P') {
+                gameRunning = !gameRunning;
+                if (gameRunning) gameLoop();
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        updateUI();
+        gameLoop();
+    </script>
+</body>
+</html>
