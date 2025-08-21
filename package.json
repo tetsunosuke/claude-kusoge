@@ -1,0 +1,19 @@
+{
+  "name": "claude-kusoge",
+  "version": "1.0.0",
+  "description": "Claudeで作るクソゲー集",
+  "main": "index.js",
+  "scripts": {
+    "update-index": "node update-index.js",
+    "deploy": "node deploy.js",
+    "dev": "npm run update-index && python -m http.server 8000",
+    "build": "npm run update-index"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/claude-kusoge.git"
+  },
+  "keywords": ["games", "retro", "claude", "javascript"],
+  "author": "Claude AI",
+  "license": "MIT"
+}
