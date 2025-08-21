@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Typing Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            position: relative;
+            border: 2px solid #00ff00;
+            background: linear-gradient(45deg, #001100 0%, #003300 100%);
+            overflow: hidden;
+            width: 800px;
+            height: 600px;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: transparent;
+        }
+        
+        #gameUI {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #00ff00;
+            font-size: 14px;
+            z-index: 10;
+            text-shadow: 0 0 5px #00ff00;
+        }
+        
+        #stats {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: #ffff00;
+            font-size: 12px;
+            z-index: 10;
+            text-shadow: 0 0 3px #ffff00;
+        }
+        
+        #currentWord {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ffffff;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px #ffffff;
+            z-index: 10;
+        }
+        
+        #inputField {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 50, 0, 0.8);
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 20px;
+            padding: 10px 20px;
+            width: 300px;
+            text-align: center;
+            z-index: 10;
+        }
+        
+        .matrix-char {
+            position: absolute;
+            color: #00ff00;
+            font-size: 12px;
+            opacity: 0.7;
+            animation: matrixFall 3s linear infinite;
+        }
+        
+        @keyframes matrixFall {
+            0% { 
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            10% { 
+                opacity: 0.7;
+            }
+            90% { 
+                opacity: 0.7;
+            }
+            100% { 
+                transform: translateY(620px);
+                opacity: 0;
+            }
+        }
+        
+        .explosion {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #ffff00 0%, #ff0000 50%, transparent 100%);
+            animation: explode 0.5s ease-out forwards;
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        @keyframes explode {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="gameUI">
+            <div>SCORE: <span id="score">000000</span></div>
+            <div>LEVEL: <span id="level">1</span></div>
+            <div>LIVES: <span id="lives">3</span></div>
+        </div>
+        <div id="stats">
+            <div>WPM: <span id="wpm">0</span></div>
+            <div>ACCURACY: <span id="accuracy">100%</span></div>
+            <div>COMBO: <span id="combo">0</span></div>
+        </div>
+        <div id="currentWord"></div>
+        <input type="text" id="inputField" placeholder="Type here..." autocomplete="off">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const inputField = document.getElementById('inputField');
+        const currentWordEl = document.getElementById('currentWord');
+        
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 600;
+        const WORD_SPEED = 1;
+        const MATRIX_CHARS = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789';
+        
+        const WORD_LIST = [
+            'hello', 'world', 'game', 'type', 'fast', 'code', 'debug', 'class', 'function', 'variable',
+            'array', 'object', 'string', 'number', 'boolean', 'loop', 'condition', 'return', 'import', 'export',
+            'javascript', 'python', 'computer', 'keyboard', 'screen', 'mouse', 'window', 'browser', 'internet', 'data',
+            'algorithm', 'structure', 'memory', 'process', 'thread', 'stack', 'queue', 'tree', 'graph', 'hash',
+            'database', 'server', 'client', 'network', 'protocol', 'socket', 'api', 'json', 'xml', 'html',
+            'quantum', 'matrix', 'vector', 'neural', 'machine', 'learning', 'artificial', 'intelligence', 'robot', 'future'
+        ];
+        
+        let score = 0;
+        let level = 1;
+        let lives = 3;
+        let wpm = 0;
+        let accuracy = 100;
+        let combo = 0;
+        let gameRunning = true;
+        
+        let totalCharsTyped = 0;
+        let correctCharsTyped = 0;
+        let gameStartTime = Date.now();
+        let lastWPMUpdate = Date.now();
+        
+        let currentWord = '';
+        let words = [];
+        let matrixChars = [];
+        let wordSpawnTimer = 0;
+        let matrixSpawnTimer = 0;
+        
+        class Word {
+            constructor() {
+                this.text = WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
+                this.x = Math.random() * (GAME_WIDTH - 200) + 100;
+                this.y = -30;
+                this.speed = WORD_SPEED + (level - 1) * 0.3;
+                this.active = true;
+                this.color = this.getWordColor();
+            }
+            
+            getWordColor() {
+                const colors = ['#ff4444', '#44ff44', '#4444ff', '#ffff44', '#ff44ff', '#44ffff'];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+            
+            update() {
+                this.y += this.speed;
+                
+                if (this.y > GAME_HEIGHT + 50) {
+                    this.active = false;
+                    lives--;
+                    combo = 0;
+                    updateUI();
+                    this.createExplosion();
+                }
+            }
+            
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.font = 'bold 20px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.text, this.x, this.y);
+                
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 1;
+                ctx.strokeText(this.text, this.x, this.y);
+            }
+            
+            createExplosion() {
+                const explosion = document.createElement('div');
+                explosion.className = 'explosion';
+                explosion.style.left = (this.x - 30) + 'px';
+                explosion.style.top = (this.y - 30) + 'px';
+                document.getElementById('gameContainer').appendChild(explosion);
+                
+                setTimeout(() => {
+                    explosion.remove();
+                }, 500);
+            }
+            
+            destroy() {
+                this.active = false;
+                this.createExplosion();
+            }
+        }
+        
+        class MatrixChar {
+            constructor() {
+                this.char = MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)];
+                this.x = Math.random() * GAME_WIDTH;
+                this.y = -20;
+                this.speed = Math.random() * 2 + 1;
+                this.opacity = Math.random() * 0.5 + 0.3;
+                this.active = true;
+            }
+            
+            update() {
+                this.y += this.speed;
+                
+                if (this.y > GAME_HEIGHT + 20) {
+                    this.active = false;
+                }
+            }
+            
+            draw() {
+                ctx.fillStyle = `rgba(0, 255, 0, ${this.opacity})`;
+                ctx.font = '12px Courier New';
+                ctx.fillText(this.char, this.x, this.y);
+            }
+        }
+        
+        function updateUI() {
+            document.getElementById('score').textContent = score.toString().padStart(6, '0');
+            document.getElementById('level').textContent = level;
+            document.getElementById('lives').textContent = lives;
+            document.getElementById('wpm').textContent = Math.floor(wpm);
+            document.getElementById('accuracy').textContent = Math.floor(accuracy) + '%';
+            document.getElementById('combo').textContent = combo;
+        }
+        
+        function calculateWPM() {
+            const currentTime = Date.now();
+            const timeElapsed = (currentTime - gameStartTime) / 1000 / 60; // minutes
+            
+            if (timeElapsed > 0) {
+                wpm = (correctCharsTyped / 5) / timeElapsed; // standard: 5 chars = 1 word
+            }
+        }
+        
+        function calculateAccuracy() {
+            if (totalCharsTyped > 0) {
+                accuracy = (correctCharsTyped / totalCharsTyped) * 100;
+            }
+        }
+        
+        function spawnWord() {
+            wordSpawnTimer++;
+            const spawnRate = Math.max(60, 120 - level * 10);
+            
+            if (wordSpawnTimer >= spawnRate) {
+                words.push(new Word());
+                wordSpawnTimer = 0;
+            }
+        }
+        
+        function spawnMatrixChar() {
+            matrixSpawnTimer++;
+            
+            if (matrixSpawnTimer >= 15) {
+                matrixChars.push(new MatrixChar());
+                matrixSpawnTimer = 0;
+            }
+        }
+        
+        function checkWordMatch(input) {
+            let matched = false;
+            
+            words.forEach(word => {
+                if (word.active && word.text.toLowerCase() === input.toLowerCase()) {
+                    word.destroy();
+                    
+                    const basePoints = word.text.length * 10;
+                    const comboBonus = combo * 5;
+                    const speedBonus = Math.max(0, Math.floor((GAME_HEIGHT - word.y) / 10));
+                    
+                    score += basePoints + comboBonus + speedBonus;
+                    combo++;
+                    
+                    correctCharsTyped += word.text.length;
+                    
+                    if (combo > 0 && combo % 10 === 0) {
+                        level = Math.min(10, Math.floor(combo / 10) + 1);
+                    }
+                    
+                    matched = true;
+                }
+            });
+            
+            if (!matched && input.length > 0) {
+                combo = 0;
+            }
+            
+            totalCharsTyped += input.length;
+        }
+        
+        function selectNewCurrentWord() {
+            if (words.length > 0) {
+                const activeWords = words.filter(w => w.active);
+                if (activeWords.length > 0) {
+                    const bottomWord = activeWords.reduce((prev, current) => 
+                        (prev.y > current.y) ? prev : current
+                    );
+                    currentWord = bottomWord.text;
+                    currentWordEl.textContent = currentWord;
+                    return;
+                }
+            }
+            
+            currentWord = '';
+            currentWordEl.textContent = '';
+        }
+        
+        function gameLoop() {
+            if (!gameRunning || lives <= 0) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '48px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText(lives <= 0 ? 'GAME OVER' : 'PAUSED', GAME_WIDTH / 2, GAME_HEIGHT / 2);
+                
+                if (lives <= 0) {
+                    ctx.font = '24px Courier New';
+                    ctx.fillText(`Final Score: ${score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 50);
+                    ctx.fillText('Press R to restart', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 80);
+                }
+                return;
+            }
+            
+            ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            
+            spawnWord();
+            spawnMatrixChar();
+            
+            matrixChars.forEach(char => char.update());
+            words.forEach(word => word.update());
+            
+            matrixChars = matrixChars.filter(char => char.active);
+            words = words.filter(word => word.active);
+            
+            matrixChars.forEach(char => char.draw());
+            words.forEach(word => word.draw());
+            
+            selectNewCurrentWord();
+            
+            calculateWPM();
+            calculateAccuracy();
+            updateUI();
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function resetGame() {
+            score = 0;
+            level = 1;
+            lives = 3;
+            wpm = 0;
+            accuracy = 100;
+            combo = 0;
+            totalCharsTyped = 0;
+            correctCharsTyped = 0;
+            gameStartTime = Date.now();
+            currentWord = '';
+            words = [];
+            matrixChars = [];
+            wordSpawnTimer = 0;
+            matrixSpawnTimer = 0;
+            gameRunning = true;
+            inputField.value = '';
+            currentWordEl.textContent = '';
+            updateUI();
+        }
+        
+        inputField.addEventListener('input', (e) => {
+            const input = e.target.value.trim();
+            
+            if (input === currentWord) {
+                checkWordMatch(input);
+                e.target.value = '';
+            }
+        });
+        
+        inputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const input = e.target.value.trim();
+                checkWordMatch(input);
+                e.target.value = '';
+            }
+        });
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'p' || e.key === 'P') {
+                gameRunning = !gameRunning;
+                if (gameRunning) gameLoop();
+            }
+            if (e.key === 'r' || e.key === 'R') {
+                if (lives <= 0) resetGame();
+            }
+        });
+        
+        // Focus the input field
+        inputField.focus();
+        
+        // Refocus input when clicking on game container
+        document.getElementById('gameContainer').addEventListener('click', () => {
+            inputField.focus();
+        });
+        
+        updateUI();
+        gameLoop();
+    </script>
+</body>
+</html>
