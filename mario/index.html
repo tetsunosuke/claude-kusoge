@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Mario Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(180deg, #5C94FC 0%, #87CEEB 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        
+        #gameContainer {
+            position: relative;
+            border: 2px solid #000;
+            background: linear-gradient(180deg, #5C94FC 0%, #87CEEB 100%);
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: transparent;
+        }
+        
+        #gameInfo {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 16px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="gameInfo">
+            <div>スコア: <span id="score">0</span></div>
+            <div>ライフ: <span id="lives">3</span></div>
+        </div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 600;
+        const GRAVITY = 0.8;
+        const JUMP_FORCE = -15;
+        const PLAYER_SPEED = 5;
+        
+        let score = 0;
+        let lives = 3;
+        let gameRunning = true;
+        let keys = {};
+        
+        class Player {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 32;
+                this.height = 32;
+                this.velocityX = 0;
+                this.velocityY = 0;
+                this.onGround = false;
+                this.direction = 1;
+            }
+            
+            update() {
+                if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                    this.velocityX = -PLAYER_SPEED;
+                    this.direction = -1;
+                } else if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                    this.velocityX = PLAYER_SPEED;
+                    this.direction = 1;
+                } else {
+                    this.velocityX = 0;
+                }
+                
+                if ((keys['ArrowUp'] || keys['w'] || keys['W'] || keys[' ']) && this.onGround) {
+                    this.velocityY = JUMP_FORCE;
+                    this.onGround = false;
+                }
+                
+                this.velocityY += GRAVITY;
+                
+                this.x += this.velocityX;
+                this.y += this.velocityY;
+                
+                if (this.y + this.height >= GAME_HEIGHT - 50) {
+                    this.y = GAME_HEIGHT - 50 - this.height;
+                    this.velocityY = 0;
+                    this.onGround = true;
+                }
+                
+                if (this.x < 0) this.x = 0;
+                if (this.x + this.width > GAME_WIDTH) this.x = GAME_WIDTH - this.width;
+                
+                if (this.y > GAME_HEIGHT) {
+                    this.reset();
+                    lives--;
+                    updateUI();
+                }
+            }
+            
+            draw() {
+                ctx.fillStyle = '#FF0000';
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(this.x + 8, this.y + 4, 6, 6);
+                ctx.fillRect(this.x + 18, this.y + 4, 6, 6);
+                
+                ctx.fillStyle = '#FFB366';
+                ctx.fillRect(this.x + 4, this.y + 12, 24, 12);
+                
+                ctx.fillStyle = '#0000FF';
+                ctx.fillRect(this.x + 2, this.y + 26, 28, 6);
+            }
+            
+            reset() {
+                this.x = 50;
+                this.y = GAME_HEIGHT - 200;
+                this.velocityX = 0;
+                this.velocityY = 0;
+                this.onGround = false;
+            }
+        }
+        
+        class Platform {
+            constructor(x, y, width, height) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+            }
+            
+            draw() {
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                ctx.strokeStyle = '#654321';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+            }
+            
+            checkCollision(player) {
+                return player.x < this.x + this.width &&
+                       player.x + player.width > this.x &&
+                       player.y < this.y + this.height &&
+                       player.y + player.height > this.y;
+            }
+        }
+        
+        class Enemy {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 24;
+                this.height = 24;
+                this.velocityX = -2;
+                this.velocityY = 0;
+                this.alive = true;
+            }
+            
+            update() {
+                if (!this.alive) return;
+                
+                this.velocityY += GRAVITY;
+                this.x += this.velocityX;
+                this.y += this.velocityY;
+                
+                if (this.y + this.height >= GAME_HEIGHT - 50) {
+                    this.y = GAME_HEIGHT - 50 - this.height;
+                    this.velocityY = 0;
+                }
+                
+                if (this.x < -this.width || this.x > GAME_WIDTH) {
+                    this.alive = false;
+                }
+            }
+            
+            draw() {
+                if (!this.alive) return;
+                
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(this.x + 4, this.y + 4, 4, 4);
+                ctx.fillRect(this.x + 16, this.y + 4, 4, 4);
+                
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(this.x + 6, this.y + 12, 12, 4);
+            }
+            
+            checkCollision(player) {
+                if (!this.alive) return false;
+                
+                return player.x < this.x + this.width &&
+                       player.x + player.width > this.x &&
+                       player.y < this.y + this.height &&
+                       player.y + player.height > this.y;
+            }
+        }
+        
+        let player = new Player(50, GAME_HEIGHT - 200);
+        let platforms = [
+            new Platform(0, GAME_HEIGHT - 50, GAME_WIDTH, 50),
+            new Platform(200, GAME_HEIGHT - 150, 150, 20),
+            new Platform(400, GAME_HEIGHT - 250, 150, 20),
+            new Platform(600, GAME_HEIGHT - 180, 100, 20)
+        ];
+        let enemies = [
+            new Enemy(300, GAME_HEIGHT - 200),
+            new Enemy(500, GAME_HEIGHT - 300)
+        ];
+        
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('lives').textContent = lives;
+        }
+        
+        function checkPlatformCollisions() {
+            platforms.forEach(platform => {
+                if (platform.checkCollision(player)) {
+                    if (player.velocityY > 0 && player.y < platform.y) {
+                        player.y = platform.y - player.height;
+                        player.velocityY = 0;
+                        player.onGround = true;
+                    }
+                }
+            });
+        }
+        
+        function checkEnemyCollisions() {
+            enemies.forEach(enemy => {
+                if (enemy.checkCollision(player)) {
+                    if (player.velocityY > 0 && player.y < enemy.y) {
+                        enemy.alive = false;
+                        player.velocityY = JUMP_FORCE / 2;
+                        score += 100;
+                        updateUI();
+                    } else {
+                        player.reset();
+                        lives--;
+                        updateUI();
+                    }
+                }
+            });
+        }
+        
+        function gameLoop() {
+            if (!gameRunning || lives <= 0) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(lives <= 0 ? 'GAME OVER' : 'PAUSED', GAME_WIDTH / 2, GAME_HEIGHT / 2);
+                if (lives <= 0) return;
+            }
+            
+            ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            
+            player.update();
+            checkPlatformCollisions();
+            
+            enemies.forEach(enemy => enemy.update());
+            checkEnemyCollisions();
+            
+            enemies = enemies.filter(enemy => enemy.alive);
+            
+            if (Math.random() < 0.005) {
+                enemies.push(new Enemy(GAME_WIDTH, GAME_HEIGHT - 200));
+            }
+            
+            platforms.forEach(platform => platform.draw());
+            player.draw();
+            enemies.forEach(enemy => enemy.draw());
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (e.key === 'p' || e.key === 'P') {
+                gameRunning = !gameRunning;
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        updateUI();
+        gameLoop();
+    </script>
+</body>
+</html>
