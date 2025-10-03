@@ -254,40 +254,48 @@
             update() {
                 if (!this.alive) return;
 
-                let nextX = this.x;
-                let nextY = this.y;
+                // Ghosts only change direction at the center of a tile.
+                const col = Math.floor(this.x / CELL_SIZE);
+                const row = Math.floor(this.y / CELL_SIZE);
+                const centerX = col * CELL_SIZE + CELL_SIZE / 2;
+                const centerY = row * CELL_SIZE + CELL_SIZE / 2;
 
-                if (this.direction === 0) nextX += this.speed;
-                if (this.direction === 1) nextY += this.speed;
-                if (this.direction === 2) nextX -= this.speed;
-                if (this.direction === 3) nextY -= this.speed;
+                const isCentered = Math.abs(this.x - centerX) < this.speed &&
+                                   Math.abs(this.y - centerY) < this.speed;
 
-                // 壁に衝突したか、またはランダムなタイミングで方向転換
-                if (!this.canMoveTo(nextX, nextY) || Math.random() < 0.02) {
-                    this._chooseNewDirection();
+                if (isCentered) {
+                    // Snap to grid for precision
+                    this.x = centerX;
+                    this.y = centerY;
+
+                    const possibleDirections = this._getPossibleDirections();
+
+                    let nextX = this.x, nextY = this.y;
+                    if (this.direction === 0) nextX += this.speed;
+                    if (this.direction === 1) nextY += this.speed;
+                    if (this.direction === 2) nextX -= this.speed;
+                    if (this.direction === 3) nextY -= this.speed;
+                    const isBlocked = !this.canMoveTo(nextX, nextY);
+
+                    // Change direction if the path is blocked or at an intersection.
+                    if (isBlocked || possibleDirections.length > 2) {
+                        this._chooseNewDirection(possibleDirections);
+                    }
                 }
 
-                nextX = this.x;
-                nextY = this.y;
-                
-                if (this.direction === 0) nextX += this.speed;
-                if (this.direction === 1) nextY += this.speed;
-                if (this.direction === 2) nextX -= this.speed;
-                if (this.direction === 3) nextY -= this.speed;
+                // Move the ghost
+                if (this.direction === 0) this.x += this.speed;
+                if (this.direction === 1) this.y += this.speed;
+                if (this.direction === 2) this.x -= this.speed;
+                if (this.direction === 3) this.y -= this.speed;
 
-                if (this.canMoveTo(nextX, nextY)) {
-                    this.x = nextX;
-                    this.y = nextY;
-                }
-
-                // 画面端でのワープ
+                // Screen Wrap
                 if (this.x < -this.size/2) this.x = GAME_WIDTH - this.size/2;
                 if (this.x > GAME_WIDTH - this.size/2) this.x = -this.size/2;
             }
 
-            _chooseNewDirection() {
+            _getPossibleDirections() {
                 const possibleDirections = [];
-                // 0=右, 1=下, 2=左, 3=上
                 for (let i = 0; i < 4; i++) {
                     let testX = this.x, testY = this.y;
                     if (i === 0) testX += this.speed;
@@ -299,8 +307,10 @@
                         possibleDirections.push(i);
                     }
                 }
+                return possibleDirections;
+            }
 
-                // 来た道を戻らないようにする（行き止まりを除く）
+            _chooseNewDirection(possibleDirections) {
                 if (possibleDirections.length > 1) {
                     const oppositeDirection = (this.direction + 2) % 4;
                     const index = possibleDirections.indexOf(oppositeDirection);
