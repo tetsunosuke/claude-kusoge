@@ -233,8 +233,8 @@
             }
             
             reset() {
-                this.x = 50;
-                this.y = 50;
+                this.x = 30;
+                this.y = 30;
                 this.direction = 0;
                 this.nextDirection = 0;
             }
@@ -337,7 +337,7 @@
             }
         }
         
-        let player = new Player(50, 50);
+        let player = new Player(30, 30);
         let ghosts = [
             new Ghost(400, 280, '#FF0000'),
             new Ghost(380, 300, '#FFB8FF'),
@@ -382,7 +382,14 @@
         }
         
         function gameLoop() {
-            if (!gameRunning || lives <= 0 || gameWon) {
+            if (!gameRunning) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+                ctx.fillStyle = '#FFFF00';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('PAUSED', GAME_WIDTH / 2, GAME_HEIGHT / 2);
+            } else if (lives <= 0 || gameWon) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
                 ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
                 ctx.fillStyle = '#FFFF00';
@@ -391,26 +398,23 @@
                 
                 if (gameWon) {
                     ctx.fillText('YOU WIN!', GAME_WIDTH / 2, GAME_HEIGHT / 2);
-                } else if (lives <= 0) {
-                    ctx.fillText('GAME OVER', GAME_WIDTH / 2, GAME_HEIGHT / 2);
                 } else {
-                    ctx.fillText('PAUSED', GAME_WIDTH / 2, GAME_HEIGHT / 2);
+                    ctx.fillText('GAME OVER', GAME_WIDTH / 2, GAME_HEIGHT / 2);
                 }
+                return;
+            } else {
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+                drawMaze();
                 
-                if (lives <= 0 || gameWon) return;
+                player.update();
+                ghosts.forEach(ghost => ghost.update());
+                checkCollisions();
+
+                player.draw();
+                ghosts.forEach(ghost => ghost.draw());
             }
-            
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-            
-            drawMaze();
-            
-            player.update();
-            ghosts.forEach(ghost => ghost.update());
-            checkCollisions();
-            
-            player.draw();
-            ghosts.forEach(ghost => ghost.draw());
             
             requestAnimationFrame(gameLoop);
         }
@@ -419,7 +423,6 @@
             keys[e.key] = true;
             if (e.key === 'p' || e.key === 'P') {
                 gameRunning = !gameRunning;
-                if (gameRunning) gameLoop();
             }
         });
         
