@@ -253,40 +253,22 @@
             update() {
                 if (!this.alive) return;
 
-                const col = Math.floor(this.x / CELL_SIZE);
-                const row = Math.floor(this.y / CELL_SIZE);
-                const centerX = col * CELL_SIZE + CELL_SIZE / 2;
-                const centerY = row * CELL_SIZE + CELL_SIZE / 2;
-
-                const isCentered = Math.abs(this.x - centerX) < this.speed && Math.abs(this.y - centerY) < this.speed;
-
                 let nextX = this.x, nextY = this.y;
-                if (this.direction === 0) nextX += this.speed;
-                if (this.direction === 1) nextY += this.speed;
-                if (this.direction === 2) nextX -= this.speed;
-                if (this.direction === 3) nextY -= this.speed;
-
-                if (isCentered) {
-                    this.x = centerX;
-                    this.y = centerY;
-
-                    const isBlocked = !canMoveTo(nextX, nextY, this.size);
-                    if (isBlocked) {
-                        const possibleDirections = this._getPossibleDirections();
-                        this._chooseNewDirection(possibleDirections);
-
-                        // Recalculate next position after choosing new direction
-                        nextX = this.x, nextY = this.y;
-                        if (this.direction === 0) nextX += this.speed;
-                        if (this.direction === 1) nextY += this.speed;
-                        if (this.direction === 2) nextX -= this.speed;
-                        if (this.direction === 3) nextY -= this.speed;
-                    }
-                }
+                if (this.direction === 0) nextX += this.speed; // Right
+                if (this.direction === 1) nextY += this.speed; // Down
+                if (this.direction === 2) nextX -= this.speed; // Left
+                if (this.direction === 3) nextY -= this.speed; // Up
 
                 if (canMoveTo(nextX, nextY, this.size)) {
                     this.x = nextX;
                     this.y = nextY;
+                } else {
+                    // Snap to grid before changing direction
+                    this.x = Math.round(this.x / CELL_SIZE) * CELL_SIZE + CELL_SIZE / 2;
+                    this.y = Math.round(this.y / CELL_SIZE) * CELL_SIZE + CELL_SIZE / 2;
+
+                    const possibleDirections = this._getPossibleDirections();
+                    this._chooseNewDirection(possibleDirections);
                 }
 
                 // Screen Wrap
@@ -311,16 +293,17 @@
             }
 
             _chooseNewDirection(possibleDirections) {
-                if (possibleDirections.length > 1) {
+                let directions = [...possibleDirections];
+                if (directions.length > 1) {
                     const oppositeDirection = (this.direction + 2) % 4;
-                    const index = possibleDirections.indexOf(oppositeDirection);
-                    if (index > -1) {
-                        possibleDirections.splice(index, 1);
+                    const nonOppositeDirections = directions.filter(dir => dir !== oppositeDirection);
+                    if (nonOppositeDirections.length > 0) {
+                        directions = nonOppositeDirections;
                     }
                 }
 
-                if (possibleDirections.length > 0) {
-                    this.direction = possibleDirections[Math.floor(Math.random() * possibleDirections.length)];
+                if (directions.length > 0) {
+                    this.direction = directions[Math.floor(Math.random() * directions.length)];
                 }
             }
             
@@ -370,10 +353,10 @@
         
         let player = new Player(30, 30);
         let ghosts = [
-            new Ghost(400, 280, '#FF0000'),
-            new Ghost(380, 300, '#FFB8FF'),
-            new Ghost(420, 300, '#00FFFF'),
-            new Ghost(400, 320, '#FFB852')
+            new Ghost(400, 280, '#FF0000'), // Blinky (red)
+            new Ghost(400, 310, '#FFB8FF'), // Pinky (pink)
+            new Ghost(380, 310, '#00FFFF'), // Inky (cyan)
+            new Ghost(420, 310, '#FFB852')  // Clyde (orange)
         ];
         
         function updateUI() {
