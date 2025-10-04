@@ -253,35 +253,41 @@
             update() {
                 if (!this.alive) return;
 
-                // Ghosts only change direction at the center of a tile.
                 const col = Math.floor(this.x / CELL_SIZE);
                 const row = Math.floor(this.y / CELL_SIZE);
                 const centerX = col * CELL_SIZE + CELL_SIZE / 2;
                 const centerY = row * CELL_SIZE + CELL_SIZE / 2;
 
-                const isCentered = Math.abs(this.x - centerX) < this.speed &&
-                                   Math.abs(this.y - centerY) < this.speed;
+                const isCentered = Math.abs(this.x - centerX) < this.speed && Math.abs(this.y - centerY) < this.speed;
+
+                let nextX = this.x, nextY = this.y;
+                if (this.direction === 0) nextX += this.speed;
+                if (this.direction === 1) nextY += this.speed;
+                if (this.direction === 2) nextX -= this.speed;
+                if (this.direction === 3) nextY -= this.speed;
 
                 if (isCentered) {
-                    // Snap to grid for precision
                     this.x = centerX;
                     this.y = centerY;
 
-                    const possibleDirections = this._getPossibleDirections();
-
-                    let nextX = this.x, nextY = this.y;
-                    if (this.direction === 0) nextX += this.speed;
-                    if (this.direction === 1) nextY += this.speed;
-                    if (this.direction === 2) nextX -= this.speed;
-                    if (this.direction === 3) nextY -= this.speed;
                     const isBlocked = !canMoveTo(nextX, nextY, this.size);
-
-                    // Change direction if the path is blocked or at an intersection.
-                    if (isBlocked || possibleDirections.length > 2) {
+                    if (isBlocked) {
+                        const possibleDirections = this._getPossibleDirections();
                         this._chooseNewDirection(possibleDirections);
+
+                        // Recalculate next position after choosing new direction
+                        nextX = this.x, nextY = this.y;
+                        if (this.direction === 0) nextX += this.speed;
+                        if (this.direction === 1) nextY += this.speed;
+                        if (this.direction === 2) nextX -= this.speed;
+                        if (this.direction === 3) nextY -= this.speed;
                     }
                 }
 
+                if (canMoveTo(nextX, nextY, this.size)) {
+                    this.x = nextX;
+                    this.y = nextY;
+                }
                 // Move the ghost
                 let nextX = this.x, nextY = this.y;
                 if (this.direction === 0) nextX += this.speed; // Right
