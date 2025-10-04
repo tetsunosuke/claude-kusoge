@@ -288,6 +288,21 @@
                     this.x = nextX;
                     this.y = nextY;
                 }
+                // Move the ghost
+                let nextX = this.x, nextY = this.y;
+                if (this.direction === 0) nextX += this.speed; // Right
+                if (this.direction === 1) nextY += this.speed; // Down
+                if (this.direction === 2) nextX -= this.speed; // Left
+                if (this.direction === 3) nextY -= this.speed; // Up
+
+                if (canMoveTo(nextX, nextY, this.size)) {
+                    this.x = nextX;
+                    this.y = nextY;
+                } else {
+                    // If we are blocked, find a new direction
+                    const possibleDirections = this._getPossibleDirections();
+                    this._chooseNewDirection(possibleDirections);
+                }
 
                 // Screen Wrap
                 if (this.x < -this.size/2) this.x = GAME_WIDTH - this.size/2;
