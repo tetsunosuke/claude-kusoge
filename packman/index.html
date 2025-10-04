@@ -110,6 +110,19 @@
             [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
         ];
         
+        function canMoveTo(x, y, size) {
+            const left = Math.floor((x - size/2) / CELL_SIZE);
+            const right = Math.floor((x + size/2) / CELL_SIZE);
+            const top = Math.floor((y - size/2) / CELL_SIZE);
+            const bottom = Math.floor((y + size/2) / CELL_SIZE);
+
+            if (left < 0 || right >= COLS || top < 0 || bottom >= ROWS) {
+                return y >= 0 && y < GAME_HEIGHT; // 左右端は通れる
+            }
+
+            return maze[top][left] !== 1 && maze[top][right] !== 1 &&
+                    maze[bottom][left] !== 1 && maze[bottom][right] !== 1;
+        }
         class Player {
             constructor(x, y) {
                 this.x = x;
@@ -147,7 +160,7 @@
                 if (this.nextDirection === 2) testX -= this.speed; // 左
                 if (this.nextDirection === 3) testY -= this.speed; // 上
                 
-                if (this.canMoveTo(testX, testY)) {
+                if (canMoveTo(testX, testY, this.size)) {
                     this.direction = this.nextDirection;
                     nextX = testX;
                     nextY = testY;
@@ -158,7 +171,7 @@
                     if (this.direction === 2) nextX -= this.speed;
                     if (this.direction === 3) nextY -= this.speed;
                     
-                    if (this.canMoveTo(nextX, nextY)) {
+                    if (canMoveTo(nextX, nextY, this.size)) {
                         // 移動可能
                     } else {
                         nextX = this.x;
@@ -175,20 +188,6 @@
                 
                 // ドット食べる
                 this.eatDots();
-            }
-            
-            canMoveTo(x, y) {
-                const left = Math.floor((x - this.size/2) / CELL_SIZE);
-                const right = Math.floor((x + this.size/2) / CELL_SIZE);
-                const top = Math.floor((y - this.size/2) / CELL_SIZE);
-                const bottom = Math.floor((y + this.size/2) / CELL_SIZE);
-                
-                if (left < 0 || right >= COLS || top < 0 || bottom >= ROWS) {
-                    return y >= 0 && y < GAME_HEIGHT; // 左右端は通れる
-                }
-                
-                return maze[top][left] !== 1 && maze[top][right] !== 1 && 
-                       maze[bottom][left] !== 1 && maze[bottom][right] !== 1;
             }
             
             eatDots() {
@@ -254,40 +253,23 @@
             update() {
                 if (!this.alive) return;
 
-                // Ghosts only change direction at the center of a tile.
-                const col = Math.floor(this.x / CELL_SIZE);
-                const row = Math.floor(this.y / CELL_SIZE);
-                const centerX = col * CELL_SIZE + CELL_SIZE / 2;
-                const centerY = row * CELL_SIZE + CELL_SIZE / 2;
+                let nextX = this.x, nextY = this.y;
+                if (this.direction === 0) nextX += this.speed; // Right
+                if (this.direction === 1) nextY += this.speed; // Down
+                if (this.direction === 2) nextX -= this.speed; // Left
+                if (this.direction === 3) nextY -= this.speed; // Up
 
-                const isCentered = Math.abs(this.x - centerX) < this.speed &&
-                                   Math.abs(this.y - centerY) < this.speed;
-
-                if (isCentered) {
-                    // Snap to grid for precision
-                    this.x = centerX;
-                    this.y = centerY;
+                if (canMoveTo(nextX, nextY, this.size)) {
+                    this.x = nextX;
+                    this.y = nextY;
+                } else {
+                    // Snap to grid before changing direction
+                    this.x = Math.round(this.x / CELL_SIZE) * CELL_SIZE + CELL_SIZE / 2;
+                    this.y = Math.round(this.y / CELL_SIZE) * CELL_SIZE + CELL_SIZE / 2;
 
                     const possibleDirections = this._getPossibleDirections();
-
-                    let nextX = this.x, nextY = this.y;
-                    if (this.direction === 0) nextX += this.speed;
-                    if (this.direction === 1) nextY += this.speed;
-                    if (this.direction === 2) nextX -= this.speed;
-                    if (this.direction === 3) nextY -= this.speed;
-                    const isBlocked = !this.canMoveTo(nextX, nextY);
-
-                    // Change direction if the path is blocked or at an intersection.
-                    if (isBlocked || possibleDirections.length > 2) {
-                        this._chooseNewDirection(possibleDirections);
-                    }
+                    this._chooseNewDirection(possibleDirections);
                 }
-
-                // Move the ghost
-                if (this.direction === 0) this.x += this.speed;
-                if (this.direction === 1) this.y += this.speed;
-                if (this.direction === 2) this.x -= this.speed;
-                if (this.direction === 3) this.y -= this.speed;
 
                 // Screen Wrap
                 if (this.x < -this.size/2) this.x = GAME_WIDTH - this.size/2;
@@ -303,7 +285,7 @@
                     if (i === 2) testX -= this.speed;
                     if (i === 3) testY -= this.speed;
 
-                    if (this.canMoveTo(testX, testY)) {
+                    if (canMoveTo(testX, testY, this.size)) {
                         possibleDirections.push(i);
                     }
                 }
@@ -311,31 +293,18 @@
             }
 
             _chooseNewDirection(possibleDirections) {
-                if (possibleDirections.length > 1) {
+                let directions = [...possibleDirections];
+                if (directions.length > 1) {
                     const oppositeDirection = (this.direction + 2) % 4;
-                    const index = possibleDirections.indexOf(oppositeDirection);
-                    if (index > -1) {
-                        possibleDirections.splice(index, 1);
+                    const nonOppositeDirections = directions.filter(dir => dir !== oppositeDirection);
+                    if (nonOppositeDirections.length > 0) {
+                        directions = nonOppositeDirections;
                     }
                 }
 
-                if (possibleDirections.length > 0) {
-                    this.direction = possibleDirections[Math.floor(Math.random() * possibleDirections.length)];
+                if (directions.length > 0) {
+                    this.direction = directions[Math.floor(Math.random() * directions.length)];
                 }
-            }
-            
-            canMoveTo(x, y) {
-                const left = Math.floor((x - this.size/2) / CELL_SIZE);
-                const right = Math.floor((x + this.size/2) / CELL_SIZE);
-                const top = Math.floor((y - this.size/2) / CELL_SIZE);
-                const bottom = Math.floor((y + this.size/2) / CELL_SIZE);
-                
-                if (left < 0 || right >= COLS || top < 0 || bottom >= ROWS) {
-                    return y >= 0 && y < GAME_HEIGHT;
-                }
-                
-                return maze[top][left] !== 1 && maze[top][right] !== 1 && 
-                       maze[bottom][left] !== 1 && maze[bottom][right] !== 1;
             }
             
             checkCollision(player) {
@@ -384,10 +353,10 @@
         
         let player = new Player(30, 30);
         let ghosts = [
-            new Ghost(400, 280, '#FF0000'),
-            new Ghost(380, 300, '#FFB8FF'),
-            new Ghost(420, 300, '#00FFFF'),
-            new Ghost(400, 320, '#FFB852')
+            new Ghost(400, 280, '#FF0000'), // Blinky (red)
+            new Ghost(400, 310, '#FFB8FF'), // Pinky (pink)
+            new Ghost(380, 310, '#00FFFF'), // Inky (cyan)
+            new Ghost(420, 310, '#FFB852')  // Clyde (orange)
         ];
         
         function updateUI() {
