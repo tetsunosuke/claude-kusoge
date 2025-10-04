@@ -180,8 +180,11 @@
                 }
                 
                 // 画面端でのワープ
-                if (nextX < -this.size/2) nextX = GAME_WIDTH - this.size/2;
-                if (nextX > GAME_WIDTH - this.size/2) nextX = -this.size/2;
+                const currentRow = Math.floor(this.y / CELL_SIZE);
+                if (currentRow === 14) {
+                    if (nextX < -this.size/2) nextX = GAME_WIDTH - this.size/2;
+                    if (nextX > GAME_WIDTH - this.size/2) nextX = -this.size/2;
+                }
                 
                 this.x = nextX;
                 this.y = nextY;
@@ -272,8 +275,11 @@
                 }
 
                 // Screen Wrap
-                if (this.x < -this.size/2) this.x = GAME_WIDTH - this.size/2;
-                if (this.x > GAME_WIDTH - this.size/2) this.x = -this.size/2;
+                const currentRow = Math.floor(this.y / CELL_SIZE);
+                if (currentRow === 14) {
+                    if (this.x < -this.size/2) this.x = GAME_WIDTH - this.size/2;
+                    if (this.x > GAME_WIDTH - this.size/2) this.x = -this.size/2;
+                }
             }
 
             _getPossibleDirections() {
