@@ -292,6 +292,10 @@
                 if (canMoveTo(nextX, nextY, this.size)) {
                     this.x = nextX;
                     this.y = nextY;
+                } else {
+                    // If we are blocked, find a new direction
+                    const possibleDirections = this._getPossibleDirections();
+                    this._chooseNewDirection(possibleDirections);
                 }
 
                 // Screen Wrap
