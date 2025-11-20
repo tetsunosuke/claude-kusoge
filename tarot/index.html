@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Celtic Cross Tarot | 神秘のタロット占い</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Shippori+Mincho:wght@400;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Celtic Cross Tarot</h1>
+            <p>心を静め、問いを念じてください</p>
+        </header>
+
+        <main>
+            <div class="tarot-board">
+                <!-- 左側のクロス部分 -->
+                <div class="cross-section">
+                    <div class="card-slot slot-1" data-pos="1" title="現状"></div>
+                    <div class="card-slot slot-2" data-pos="2" title="障害・対策"></div>
+                    <div class="card-slot slot-3" data-pos="3" title="顕在意識（目標）"></div>
+                    <div class="card-slot slot-4" data-pos="4" title="潜在意識（本心）"></div>
+                    <div class="card-slot slot-5" data-pos="5" title="過去"></div>
+                    <div class="card-slot slot-6" data-pos="6" title="未来"></div>
+                </div>
+
+                <!-- 右側の柱部分 -->
+                <div class="staff-section">
+                    <div class="card-slot slot-10" data-pos="10" title="最終結果"></div>
+                    <div class="card-slot slot-9" data-pos="9" title="願望・恐れ"></div>
+                    <div class="card-slot slot-8" data-pos="8" title="周囲の状況"></div>
+                    <div class="card-slot slot-7" data-pos="7" title="本人の立場"></div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="shuffle-btn" class="btn-primary">カードを混ぜて占う</button>
+                <button id="reset-btn" class="btn-secondary" style="display: none;">もう一度占う</button>
+            </div>
+
+            <div id="reading-result" class="reading-result hidden">
+                <h2>リーディング結果</h2>
+                <div id="result-content"></div>
+            </div>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>

@@ -4,19 +4,19 @@ const path = require('path');
 function updateIndexHtml() {
     const rootDir = __dirname;
     const indexPath = path.join(rootDir, 'index.html');
-    
+
     // ゲームディレクトリを探す
     const gameDirectories = fs.readdirSync(rootDir)
         .filter(item => {
             const itemPath = path.join(rootDir, item);
-            return fs.statSync(itemPath).isDirectory() && 
-                   fs.existsSync(path.join(itemPath, 'index.html')) &&
-                   !item.startsWith('.') &&
-                   item !== 'node_modules';
+            return fs.statSync(itemPath).isDirectory() &&
+                fs.existsSync(path.join(itemPath, 'index.html')) &&
+                !item.startsWith('.') &&
+                item !== 'node_modules';
         });
-    
+
     console.log('発見されたゲームディレクトリ:', gameDirectories);
-    
+
     // ゲーム名のマッピング
     const gameNames = {
         'gradius': '🚀 Gradius風シューティング',
@@ -26,9 +26,10 @@ function updateIndexHtml() {
         'breakout': '🏓 Breakout風',
         'snake': '🐍 Snake風',
         'frogger': '🐸 Frogger風',
-        'invaders': '👾 Space Invaders風'
+        'invaders': '👾 Space Invaders風',
+        'tarot': '🔮 ケルト十字タロット占い'
     };
-    
+
     // ゲームリンクを生成
     const gameLinks = gameDirectories
         .map(dir => {
@@ -36,7 +37,7 @@ function updateIndexHtml() {
             return `        <a href="./${dir}/" class="game-link">${displayName}</a>`;
         })
         .join('\n');
-    
+
     // index.htmlテンプレート
     const indexContent = `<!DOCTYPE html>
 <html lang="ja">
@@ -98,7 +99,7 @@ ${gameLinks}
     </div>
 </body>
 </html>`;
-    
+
     // index.htmlを更新
     fs.writeFileSync(indexPath, indexContent, 'utf8');
     console.log('index.htmlを更新しました');
